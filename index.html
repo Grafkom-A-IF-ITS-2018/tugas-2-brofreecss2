@@ -1,0 +1,419 @@
+<html>
+<head>
+    <title>Tugas 1</title>
+    <meta http-equiv="content-type" content="text/html" charset="ISO-8859-1">
+
+    <script type="text/javascript" src="gl-matrix-min.js"></script>
+
+    <script id="shader-fs" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec4 vColor;
+        void main(void) {
+            gl_FragColor = vColor;
+        }
+    </script>
+
+    <script id="shader-vs" type="x-shader/x-vertex">
+        attribute vec3 aVertexPosition;
+        attribute vec4 aVertexColor;
+        uniform mat4 uMVMatrix;
+        uniform mat4 uPMatrix;
+        varying vec4 vColor;
+        void main(void) {
+            gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+            vColor = aVertexColor;
+        }
+    </script>
+    <script type="text/javascript">
+        /** @type {WebGLRenderingContext} */
+        let gl
+
+        const initGL = (canvas)=>{
+            try {
+                gl = canvas.getContext('webgl')
+                gl.viewportWidth = canvas.width
+                gl.viewportHeight = canvas.height
+            } catch (e) {
+
+            }
+            if (!gl) {
+                alert('Tidak bisa menginisialisasi WebGL')
+            }
+        }
+
+        const getShader = (gl, id)=>{
+            let shaderScript = document.getElementById(id)
+            if (!shaderScript) {
+                return null
+            }
+            let str = ''
+            let k = shaderScript.firstChild
+            while (k) {
+                if (k.nodeType === 3) {
+                    str += k.textContent
+                }
+                k = k.nextSibling
+            }
+            let shader
+            if (shaderScript.type === 'x-shader/x-fragment') {
+                shader = gl.createShader(gl.FRAGMENT_SHADER)
+            } else if (shaderScript.type = 'x-shader/x-vertex') {
+                shader = gl.createShader(gl.VERTEX_SHADER)
+            } else {
+                return null
+            }
+            gl.shaderSource(shader, str)
+            gl.compileShader(shader)
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                alert(gl.getShaderInfoLog(shader))
+                return null
+            }
+            return shader
+        }
+
+        let shaderProgram
+
+        const initShaders = ()=>{
+            let fragmentShader = getShader(gl, 'shader-fs')
+            let vertexShader = getShader(gl, 'shader-vs')
+            shaderProgram = gl.createProgram()
+            gl.attachShader(shaderProgram, fragmentShader)
+            gl.attachShader(shaderProgram, vertexShader)
+            gl.linkProgram(shaderProgram)
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                alert('Tidak bisa menginisialisasi shaders')
+            }
+            gl.useProgram(shaderProgram)
+            shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, 'aVertexPosition')
+            gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute)
+            shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, 'aVertexColor')
+            gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute)
+            shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, 'uPMatrix')
+            shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, 'uMVMatrix')
+        }
+
+        let mvMatrix = mat4.create()
+        let mvMatrixStack = []
+        let pMatrix = mat4.create()
+
+        const mvPushMatrix = ()=>{
+            let copy = mat4.create()
+            mat4.copy(copy, mvMatrix)
+            mvMatrixStack.push(copy)
+        }
+
+        const mvPopMatrix = ()=>{
+            if (mvMatrixStack.length === 0) {
+                throw "Tumpukan matriks kosong"
+            }
+            mvMatrix = mvMatrixStack.pop()
+        }
+
+        const setMatrixUniforms = ()=>{
+            gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix)
+            gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix)
+        }
+
+        let NVertexPositionBuffer
+        let NVertexColorBuffer
+        let TVertexPositionBuffer
+        let TVertexColorBuffer
+
+        const initBuffers = ()=>{
+            // Triangle Position
+            NVertexPositionBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ARRAY_BUFFER, NVertexPositionBuffer)
+            let vertices = [
+                //depan
+                -5.0, 5.0, 1.0,
+                -5.0, -5.0, 1.0,
+                -3.5, -5.0, 1.0,
+                -3.5, -5.0, 1.0,
+                -3.5, 5.0, 1.0,
+                -5.0, 5.0, 1.0,
+
+                -5.0, 5.0, 1.0,
+                -3.5, 5.0, 1.0,
+                5.0, -5.0, 1.0,
+                5.0, -5.0, 1.0,
+                3.5, -5.0, 1.0,
+                -5.0, 5.0, 1.0,
+
+                5.0, -5.0, 1.0,
+                5.0, 5.0, 1.0,
+                3.5, 5.0, 1.0,
+                3.5, 5.0, 1.0,
+                5.0, -5.0, 1.0,
+                3.5, -5.0, 1.0,
+
+                //belakang
+                -5.0, 5.0, -1.0,
+                -5.0, -5.0, -1.0,
+                -3.5, -5.0, -1.0,
+                -3.5, -5.0, -1.0,
+                -3.5, 5.0, -1.0,
+                -5.0, 5.0, -1.0,
+
+                -5.0, 5.0, -1.0,
+                -3.5, 5.0, -1.0,
+                5.0, -5.0, -1.0,
+                5.0, -5.0, -1.0,
+                3.5, -5.0, -1.0,
+                -5.0, 5.0, -1.0,
+
+                5.0, -5.0, -1.0,
+                5.0, 5.0, -1.0,
+                3.5, 5.0, -1.0,
+                3.5, 5.0, -1.0,
+                5.0, -5.0, -1.0,
+                3.5, -5.0, -1.0,
+
+                //kiri
+                -5.0, 5.0, 1.0,
+                -5.0, -5.0, 1.0,
+                -5.0, -5.0, -1.0,
+                -5.0, 5.0, -1.0,
+                -5.0, 5.0, 1.0,
+                -5.0, -5.0, -1.0,
+
+                //kanan
+                5.0, 5.0, 1.0,
+                5.0, -5.0, 1.0,
+                5.0, -5.0, -1.0,
+                5.0, -5.0, -1.0,
+                5.0, 5.0, -1.0,
+                5.0, 5.0, 1.0,
+
+                //atas
+                -5.0, 5.0, 1.0,
+                -3.5, 5.0, 1.0,
+                -5.0, 5.0, -1.0,
+                -5.0, 5.0, -1.0,
+                -3.5, 5.0, -1.0,
+                -3.5, 5.0, 1.0,
+
+                5.0, 5.0, 1.0,
+                3.5, 5.0, 1.0,
+                5.0, 5.0, -1.0,
+                5.0, 5.0, -1.0,
+                3.5, 5.0, -1.0,
+                3.5, 5.0, 1.0,
+
+                -5.0, 5.0, 1.0,
+                -5.0, 5.0, -1.0,
+                -3.5, 5.0, 1.0,
+                -3.5, 5.0, 1.0,
+                -3.5, 5.0, -1.0,
+                -5.0, 5.0, -1.0,
+
+                //bawah
+                -5.0, -5.0, 1.0,
+                -3.5, -5.0, 1.0,
+                -5.0, -5.0, -1.0,
+                -5.0, -5.0, -1.0,
+                -3.5, -5.0, -1.0,
+                -3.5, -5.0, 1.0,
+
+                5.0, -5.0, 1.0,
+                3.5, -5.0, 1.0,
+                5.0, -5.0, -1.0,
+                5.0, -5.0, -1.0,
+                3.5, -5.0, -1.0,
+                3.5, -5.0, 1.0,
+
+                -3.5, 5.0, 1.0,
+                -3.5, 5.0, -1.0,
+                5.0, -5.0, 1.0,
+                5.0, -5.0, 1.0,
+                5.0, -5.0, -1.0,
+                -3.5, 5.0, -1.0
+            ]
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)
+            NVertexPositionBuffer.itemSize = 3
+            NVertexPositionBuffer.numItems = vertices.length / 3
+            // Triangle Color
+            NVertexColorBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ARRAY_BUFFER, NVertexColorBuffer)
+            let colors = []
+            for(let i=0;i<NVertexPositionBuffer.numItems / 3;++i){
+                colors = colors.concat([1.0,0.0,0.0,1.0])
+                colors = colors.concat([0.0,1.0,0.0,1.0])
+                colors = colors.concat([0.0,0.0,1.0,1.0])
+            }
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW)
+            NVertexColorBuffer.itemSize = 4
+            NVertexColorBuffer.numItems = colors.length / 4
+            // Square Position
+            TVertexPositionBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ARRAY_BUFFER, TVertexPositionBuffer)
+            let vertices2 = [
+                //depan
+                -5.0, 5.0, 1.0,
+                5.0, 5.0, 1.0,
+                5.0, 3.5, 1.0,
+                5.0, 3.5, 1.0,
+                -5.0, 3.5, 1.0,
+                -5.0, 5.0, 1.0,
+
+                -1.0, 5.0, 1.0,
+                1.0, 5.0, 1.0,
+                1.0, -5.0, 1.0,
+                1.0, -5.0, 1.0,
+                -1.0, -5.0, 1.0,
+                -1.0, 5.0, 1.0,
+
+                //belakang
+                -5.0, 5.0, -1.0,
+                5.0, 5.0, -1.0,
+                5.0, 3.5, -1.0,
+                5.0, 3.5, -1.0,
+                -5.0, 3.5, -1.0,
+                -5.0, 5.0, -1.0,
+
+                -1.0, 5.0, -1.0,
+                1.0, 5.0, -1.0,
+                1.0, -5.0, -1.0,
+                1.0, -5.0, -1.0,
+                -1.0, -5.0, -1.0,
+                -1.0, 5.0, -1.0,
+
+                //kiri
+                -5.0, 5.0, 1.0,
+                -5.0, 3.5, 1.0,
+                -5.0, 3.5, -1.0,
+                -5.0, 3.5, -1.0,
+                -5.0, 5.0, -1.0,
+                -5.0, 5.0, 1.0,
+
+                -1.0, 5.0, 1.0,
+                -1.0, -5.0, 1.0,
+                -1.0, -5.0, -1.0,
+                -1.0, -5.0, -1.0,
+                -1.0, 5.0, -1.0,
+                -1.0, 5.0, 1.0,
+
+                //kanan
+                5.0, 5.0, 1.0,
+                5.0, 3.5, 1.0,
+                5.0, 3.5, -1.0,
+                5.0, 3.5, -1.0,
+                5.0, 5.0, -1.0,
+                5.0, 5.0, 1.0,
+
+                1.0, 5.0, 1.0,
+                1.0, -5.0, 1.0,
+                1.0, -5.0, -1.0,
+                1.0, -5.0, -1.0,
+                1.0, 5.0, -1.0,
+                1.0, 5.0, 1.0,
+
+                //atas
+                -5.0, 5.0, 1.0,
+                5.0, 5.0, 1.0,
+                5.0, 5.0, -1.0,
+                5.0, 5.0, -1.0,
+                -5.0, 5.0, -1.0,
+                -5.0, 5.0, 1.0,
+
+                //bawah
+
+                -5.0, 3.5, 1.0,
+                5.0, 3.5, 1.0,
+                5.0, 3.5, -1.0,
+                5.0, 3.5, -1.0,
+                -5.0, 3.5, -1.0,
+                -5.0, 3.5, 1.0,
+
+                -1.0, -5.0, 1.0,
+                1.0, -5.0, 1.0,
+                1.0, -5.0, -1.0,
+                1.0, -5.0, -1.0,
+                -1.0, -5.0, -1.0,
+                -1.0, -5.0, 1.0,
+
+            ]
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices2), gl.STATIC_DRAW)
+            TVertexPositionBuffer.itemSize = 3
+            TVertexPositionBuffer.numItems = vertices2.length / 3
+            // Square Color
+            TVertexColorBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ARRAY_BUFFER, TVertexColorBuffer)
+            colors = []
+            for(let i=0;i<TVertexPositionBuffer.numItems / 3;++i){
+                colors = colors.concat([1.0,0.0,0.0,1.0])
+                colors = colors.concat([0.0,1.0,0.0,1.0])
+                colors = colors.concat([0.0,0.0,1.0,1.0])
+            }
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW)
+            TVertexColorBuffer.itemSize = 4
+            TVertexColorBuffer.numItems = colors.length / 4
+        }
+
+        let rTri = 0
+        let rSquare = 0
+
+        let drawScene = ()=>{
+            gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight)
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+            mat4.perspective(pMatrix, glMatrix.toRadian(45), gl.viewportWidth / gl.viewportHeight, 0.1, 100.0)
+            mat4.identity(mvMatrix)
+
+            mat4.translate(mvMatrix, mvMatrix, [0.0, 10.0, -50.0])
+            mvPushMatrix()
+            mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rTri), [1.0, 0.0, 0.0])
+            //mat4.rotateY(mvMatrix, mvMatrix, glMatrix.toRadian(rTri))
+            gl.bindBuffer(gl.ARRAY_BUFFER, NVertexPositionBuffer)
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, NVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
+            gl.bindBuffer(gl.ARRAY_BUFFER, NVertexColorBuffer)
+            gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, NVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0)
+            setMatrixUniforms()
+            gl.drawArrays(gl.TRIANGLES, 0, NVertexPositionBuffer.numItems)
+            mvPopMatrix()
+
+            mat4.translate(mvMatrix, mvMatrix, [0.0, -20.0, 0.0])
+            mvPushMatrix()
+            mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rSquare), [0.0, 1.0, 0.0])
+            //mat4.rotateX(mvMatrix, mvMatrix, glMatrix.toRadian(rSquare))
+            gl.bindBuffer(gl.ARRAY_BUFFER, TVertexPositionBuffer)
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, TVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
+            gl.bindBuffer(gl.ARRAY_BUFFER, TVertexColorBuffer)
+            gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, TVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0)
+            setMatrixUniforms()
+            gl.drawArrays(gl.TRIANGLES, 0, TVertexPositionBuffer.numItems)
+            mvPopMatrix()
+
+        }
+
+        let lastTime = 0
+
+        const animate = ()=>{
+            let timeNow = new Date().getTime()
+            if (lastTime !== 0) {
+                let elapsed = timeNow - lastTime
+                rTri += (120 * elapsed) / 1000.0
+                rSquare += (120 * elapsed) / 1000.0
+            }
+            lastTime = timeNow
+        }
+
+        const tick = ()=>{
+            requestAnimationFrame(tick)
+            drawScene()
+            animate()
+        }
+
+        const webGLStart = ()=>{
+            var canvas = document.getElementById('mycanvas')
+            initGL(canvas)
+            initShaders()
+            initBuffers()
+            gl.clearColor(0.0, 0.0, 0.0, 1.0)
+            gl.enable(gl.DEPTH_TEST)
+            tick()
+        }
+    </script>
+</head>
+<body onload="webGLStart()">
+    <canvas id="mycanvas" style="border: none" width="500" height="500"></canvas>
+</body>
+</html>
